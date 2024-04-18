@@ -21,10 +21,10 @@ blst = "^0"
 sppark = { path = "sppark/rust" }
 rand = "^0"
 rand_chacha = "^0"
-ark-std = "0.3.0"
-ark-ff = "0.3.0"
-ark-ec = { version = "0.3.0", features = [ "parallel" ] }
-ark-bls12-381 = { version = "0.3.0" }
+ark-std = "0.4.0"
+ark-ff = "0.4.0"
+ark-ec = { version = "0.4.0", features = [ "parallel" ] }
+ark-bls12-381 = { version = "0.4.0" }
 
 [build-dependencies]
 cc = "^1.0.70"

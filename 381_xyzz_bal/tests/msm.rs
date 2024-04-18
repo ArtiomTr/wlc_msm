@@ -2,10 +2,9 @@
 // Licensed under the Apache License, Version 2.0, see LICENSE for details.
 // SPDX-License-Identifier: Apache-2.0
 
-use ark_bls12_381::G1Affine;
-use ark_ec::msm::VariableBaseMSM;
+use ark_bls12_381::{G1Affine, G1Projective};
+use ark_ec::{CurveGroup, VariableBaseMSM};
 use ark_ff::BigInteger256;
-use ark_ec::ProjectiveCurve;
 
 use std::str::FromStr;
 
@@ -32,9 +31,9 @@ fn msm_correctness() {
 
         
         let arkworks_result =
-            VariableBaseMSM::multi_scalar_mul(points.as_slice(), unsafe {
-                std::mem::transmute::<&[_], &[BigInteger256]>(&scalars[start..end])
-        })
+            <G1Projective as VariableBaseMSM>::msm(points.as_slice(), &scalars[start..end]
+        )
+        .unwrap()
         .into_affine();
         
         assert_eq!(msm_results[b].into_affine(), arkworks_result);

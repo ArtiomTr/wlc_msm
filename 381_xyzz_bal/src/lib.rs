@@ -4,7 +4,7 @@
 
 use std::os::raw::c_void;
 use ark_bls12_381::{Fr, G1Affine};
-use ark_ec::AffineCurve;
+use ark_ec::AffineRepr;
 use ark_ff::PrimeField;
 use ark_std::Zero;
 
@@ -59,7 +59,7 @@ extern "C" {
     // ) -> cuda::Error;
 }
 
-pub fn multi_scalar_mult_init<G: AffineCurve>(
+pub fn multi_scalar_mult_init<G: AffineRepr>(
     points: &[G],
 ) -> MultiScalarMultContext {
     let mut ret = MultiScalarMultContext {
@@ -81,11 +81,11 @@ pub fn multi_scalar_mult_init<G: AffineCurve>(
     ret
 }
     
-pub fn multi_scalar_mult<G: AffineCurve>(
+pub fn multi_scalar_mult<G: AffineRepr>(
     context: &mut MultiScalarMultContext,
     points: &[G],
     scalars: &[<G::ScalarField as PrimeField>::BigInt],
-) -> Vec<G::Projective> {
+) -> Vec<G::Group> {
     let npoints = points.len();
     if scalars.len() % npoints != 0 {
         panic!("length mismatch")
@@ -94,10 +94,10 @@ pub fn multi_scalar_mult<G: AffineCurve>(
     //let mut context = multi_scalar_mult_init(points);
 
     let batch_size = scalars.len() / npoints;
-    let mut ret = vec![G::Projective::zero(); batch_size];
+    let mut ret = vec![G::Group::zero(); batch_size];
     let err = unsafe {
         let result_ptr = 
-            &mut *(&mut ret as *mut Vec<G::Projective>
+            &mut *(&mut ret as *mut Vec<G::Group>
                    as *mut Vec<u64>);
         
         // mult_pippenger_faster_inf2();

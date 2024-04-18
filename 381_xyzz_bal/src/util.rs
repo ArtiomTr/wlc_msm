@@ -2,10 +2,12 @@
 // Licensed under the Apache License, Version 2.0, see LICENSE for details.
 // SPDX-License-Identifier: Apache-2.0
 
+use std::ops::AddAssign;
+
 use rand::SeedableRng;
 use rand_chacha::ChaCha20Rng;
 
-use ark_ec::{AffineCurve, ProjectiveCurve};
+use ark_ec::{AffineRepr, CurveGroup, Group};
 use ark_std::UniformRand;
 
 use ark_ff::prelude::*;
@@ -13,7 +15,7 @@ use ark_std::vec::Vec;
 
 
 
-pub fn generate_points_scalars<G: AffineCurve>(
+pub fn generate_points_scalars<G: AffineRepr>(
     len: usize,
     batch_size: usize
 ) -> (Vec<G>, Vec<G::ScalarField>) {
@@ -21,9 +23,9 @@ pub fn generate_points_scalars<G: AffineCurve>(
     let mut rng = ChaCha20Rng::from_entropy();
 
     let mut points =
-        <G::Projective as ProjectiveCurve>::batch_normalization_into_affine(
+        <G::Group as CurveGroup>::normalize_batch(
             &(0..rand_gen)
-                .map(|_| G::Projective::rand(&mut rng))
+                .map(|_| G::Group::rand(&mut rng))
                 .collect::<Vec<_>>(),
         );
     
@@ -51,10 +53,10 @@ use rayon::prelude::*;
 pub struct VariableBaseMSM2;
 
 impl VariableBaseMSM2 {
-    pub fn multi_scalar_mul<G: AffineCurve>(
+    pub fn multi_scalar_mul<G: AffineRepr>(
         bases: &[G],
         scalars: &[<G::ScalarField as PrimeField>::BigInt],
-    ) -> G::Projective {
+    ) -> G::Group {
         let size = ark_std::cmp::min(bases.len(), scalars.len());
         let scalars = &scalars[..size];
         let bases = &bases[..size];
@@ -68,10 +70,10 @@ impl VariableBaseMSM2 {
         let c = 21;
 
 
-        let num_bits = <G::ScalarField as PrimeField>::Params::MODULUS_BITS as usize;
-        let fr_one = G::ScalarField::one().into_repr();
+        let num_bits = <G::ScalarField as PrimeField>::MODULUS_BIT_SIZE as usize;
+        let fr_one = G::ScalarField::one().into();
 
-        let zero = G::Projective::zero();
+        let zero = G::Group::zero();
         let window_starts: Vec<_> = (0..num_bits).step_by(c).collect();
 
         // Each window is of size `c`.
@@ -90,7 +92,7 @@ impl VariableBaseMSM2 {
                         if scalar == fr_one {
                             // We only process unit scalars once in the first window.
                             if w_start == 0 {
-                                res.add_assign_mixed(base);
+                                res.add_assign(base);
                             }
                         } else {
                             let mut scalar = scalar;
@@ -107,7 +109,7 @@ impl VariableBaseMSM2 {
                             // (Recall that `buckets` doesn't have a zero bucket.)
                             // if w_start != 252{
                                 if scalar != 0 {
-                                    buckets[(scalar - 1) as usize].add_assign_mixed(base);
+                                    buckets[(scalar - 1) as usize].add_assign(base);
                                 }
                             // }
 
@@ -129,7 +131,7 @@ impl VariableBaseMSM2 {
 
                 // `running_sum` = sum_{j in i..num_buckets} bucket[j],
                 // where we iterate backward from i = num_buckets to 0.
-                let mut running_sum = G::Projective::zero();
+                let mut running_sum = G::Group::zero();
                 buckets.into_iter().rev().for_each(|b| {
                     running_sum += &b;
                     res += &running_sum;
