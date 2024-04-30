@@ -4,6 +4,7 @@
 
 use std::ops::AddAssign;
 
+use blst::{blst_fr, blst_fr_from_uint64, blst_p1, blst_p1_affine, blst_p1_generator, blst_p1_mult, blst_p1_to_affine, blst_scalar, blst_scalar_from_fr};
 use rand::SeedableRng;
 use rand_chacha::ChaCha20Rng;
 
@@ -13,24 +14,37 @@ use ark_std::UniformRand;
 use ark_ff::prelude::*;
 use ark_std::vec::Vec;
 
-
-
-pub fn generate_points_scalars<G: AffineRepr>(
+pub fn generate_points_scalars(
     len: usize,
-    batch_size: usize
-) -> (Vec<G>, Vec<G::ScalarField>) {
+    batch_size: usize,
+) -> (Vec<blst_p1_affine>, Vec<blst_fr>) {
     let rand_gen: usize = 1 << 11;
     let mut rng = ChaCha20Rng::from_entropy();
 
-    let mut points =
-        <G::Group as CurveGroup>::normalize_batch(
-            &(0..rand_gen)
-                .map(|_| G::Group::rand(&mut rng))
-                .collect::<Vec<_>>(),
-        );
-    
-// Sprinkle in some infinity points
-//    points[3] = G::zero();
+    let mut points = (0..rand_gen)
+        .map(|_| {
+            let val: [u64; 4] = [
+                rand::random(),
+                rand::random(),
+                rand::random(),
+                rand::random(),
+            ];
+            let mut ret = blst_fr::default();
+            unsafe { blst_fr_from_uint64(&mut ret, val.as_ptr()) };
+            let mut scalar = blst_scalar::default();
+            unsafe { blst_scalar_from_fr(&mut scalar, &ret) };
+
+            let mut point = unsafe { *blst_p1_generator() };
+            unsafe { blst_p1_mult(&mut point, &point, scalar.b.as_ptr(), 255) };
+            
+            let mut affine = blst_p1_affine::default();
+            unsafe { blst_p1_to_affine(&mut affine, &point) };
+            affine
+        })
+        .collect::<Vec<_>>();
+
+    // Sprinkle in some infinity points
+    //    points[3] = G::zero();
     while points.len() < len {
         points.append(&mut points.clone());
     }
@@ -38,14 +52,21 @@ pub fn generate_points_scalars<G: AffineRepr>(
     let points = &points[0..len];
 
     let scalars = (0..len * batch_size)
-        .map(|_| G::ScalarField::rand(&mut rng))
+        .map(|_| {
+            let val: [u64; 4] = [
+                rand::random(),
+                rand::random(),
+                rand::random(),
+                rand::random(),
+            ];
+            let mut ret = blst_fr::default();
+            unsafe { blst_fr_from_uint64(&mut ret, val.as_ptr()) };
+            ret
+        })
         .collect::<Vec<_>>();
 
-    (points.to_vec(), scalars)
+    (points, scalars)
 }
-
-
-
 
 #[cfg(feature = "parallel")]
 use rayon::prelude::*;
@@ -60,7 +81,8 @@ impl VariableBaseMSM2 {
         let size = ark_std::cmp::min(bases.len(), scalars.len());
         let scalars = &scalars[..size];
         let bases = &bases[..size];
-        let scalars_and_bases_iter = scalars.iter().zip(bases).filter(|(s, _)| !s.is_zero());
+        let scalars_and_bases_iter =
+            scalars.iter().zip(bases).filter(|(s, _)| !s.is_zero());
 
         // let c = if size < 32 {
         //     3
@@ -69,8 +91,8 @@ impl VariableBaseMSM2 {
         // };
         let c = 21;
 
-
-        let num_bits = <G::ScalarField as PrimeField>::MODULUS_BIT_SIZE as usize;
+        let num_bits =
+            <G::ScalarField as PrimeField>::MODULUS_BIT_SIZE as usize;
         let fr_one = G::ScalarField::one().into();
 
         let zero = G::Group::zero();
@@ -83,38 +105,36 @@ impl VariableBaseMSM2 {
             .map(|w_start| {
                 let mut res = zero;
                 // let mut count = 0;
-                
+
                 // We don't need the "zero" bucket, so we only have 2^c - 1 buckets.
                 let mut buckets = vec![zero; (1 << c) - 1];
                 // This clone is cheap, because the iterator contains just a
                 // pointer and an index into the original vectors.
                 scalars_and_bases_iter.clone().for_each(|(&scalar, base)| {
-                        if scalar == fr_one {
-                            // We only process unit scalars once in the first window.
-                            if w_start == 0 {
-                                res.add_assign(base);
-                            }
-                        } else {
-                            let mut scalar = scalar;
-    
-                            // We right-shift by w_start, thus getting rid of the
-                            // lower bits.
-                            scalar.divn(w_start as u32);
-    
-                            // We mod the remaining bits by 2^{window size}, thus taking `c` bits.
-                            let scalar = scalar.as_ref()[0] % (1 << c);
-    
-                            // If the scalar is non-zero, we update the corresponding
-                            // bucket.
-                            // (Recall that `buckets` doesn't have a zero bucket.)
-                            // if w_start != 252{
-                                if scalar != 0 {
-                                    buckets[(scalar - 1) as usize].add_assign(base);
-                                }
-                            // }
-
-
+                    if scalar == fr_one {
+                        // We only process unit scalars once in the first window.
+                        if w_start == 0 {
+                            res.add_assign(base);
                         }
+                    } else {
+                        let mut scalar = scalar;
+
+                        // We right-shift by w_start, thus getting rid of the
+                        // lower bits.
+                        scalar.divn(w_start as u32);
+
+                        // We mod the remaining bits by 2^{window size}, thus taking `c` bits.
+                        let scalar = scalar.as_ref()[0] % (1 << c);
+
+                        // If the scalar is non-zero, we update the corresponding
+                        // bucket.
+                        // (Recall that `buckets` doesn't have a zero bucket.)
+                        // if w_start != 252{
+                        if scalar != 0 {
+                            buckets[(scalar - 1) as usize].add_assign(base);
+                        }
+                        // }
+                    }
                 });
 
                 // Compute sum_{i in 0..num_buckets} (sum_{j in i..num_buckets} bucket[j])
@@ -139,8 +159,7 @@ impl VariableBaseMSM2 {
                 res
             })
             .collect();
-        
-        
+
         // We store the sum for the lowest window.
         let lowest = *window_sums.first().unwrap();
 

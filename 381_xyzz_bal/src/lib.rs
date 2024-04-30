@@ -24,9 +24,8 @@ pub struct MultiScalarMultContext {
 extern "C" {
     fn mult_pippenger_faster_init(
         context: *mut MultiScalarMultContext,
-        points_with_infinity: *const G1Affine,
+        points_with_infinity: *const blst_p1_affine,
         npoints: usize,
-        ffi_affine_sz: usize,
     ) -> cuda::Error;
 
     // fn mult_pippenger_init(
@@ -41,11 +40,10 @@ extern "C" {
     fn mult_pippenger_faster_inf(
         context: *mut MultiScalarMultContext,
         out: *mut u64,
-        points_with_infinity: *const G1Affine,
+        points_with_infinity: *const blst_p1_affine,
         npoints: usize,
         batch_size: usize,
-        scalars: *const Fr,
-        ffi_affine_sz: usize,
+        scalars: *const blst_fr,
     ) -> cuda::Error;
     
     // fn mult_pippenger_inf(
@@ -59,8 +57,8 @@ extern "C" {
     // ) -> cuda::Error;
 }
 
-pub fn multi_scalar_mult_init<G: AffineRepr>(
-    points: &[G],
+pub fn multi_scalar_mult_init(
+    points: &[blst_p1_affine],
 ) -> MultiScalarMultContext {
     let mut ret = MultiScalarMultContext {
         context: std::ptr::null_mut(),
@@ -69,9 +67,8 @@ pub fn multi_scalar_mult_init<G: AffineRepr>(
     let err = unsafe {
         mult_pippenger_faster_init(
             &mut ret,
-            points as *const _ as *const G1Affine,
+            points as *const _ as *const blst_p1_affine,
             points.len(),
-            std::mem::size_of::<G1Affine>(),
         )
     };
     if err.code != 0 {
@@ -81,11 +78,11 @@ pub fn multi_scalar_mult_init<G: AffineRepr>(
     ret
 }
     
-pub fn multi_scalar_mult<G: AffineRepr>(
+pub fn multi_scalar_mult(
     context: &mut MultiScalarMultContext,
-    points: &[G],
-    scalars: &[<G::ScalarField as PrimeField>::BigInt],
-) -> Vec<G::Group> {
+    points: &[blst_p1_affine],
+    scalars: &[blst_fr],
+) -> Vec<blst_p1> {
     let npoints = points.len();
     if scalars.len() % npoints != 0 {
         panic!("length mismatch")
@@ -94,10 +91,10 @@ pub fn multi_scalar_mult<G: AffineRepr>(
     //let mut context = multi_scalar_mult_init(points);
 
     let batch_size = scalars.len() / npoints;
-    let mut ret = vec![G::Group::zero(); batch_size];
+    let mut ret = vec![blst_p1::default(); batch_size];
     let err = unsafe {
         let result_ptr = 
-            &mut *(&mut ret as *mut Vec<G::Group>
+            &mut *(&mut ret as *mut Vec<blst_p1>
                    as *mut Vec<u64>);
         
         // mult_pippenger_faster_inf2();
@@ -105,10 +102,9 @@ pub fn multi_scalar_mult<G: AffineRepr>(
         mult_pippenger_faster_inf(
             context,
             result_ptr.as_mut_ptr(),
-            points as *const _ as *const G1Affine,
+            points as *const _ as *const blst_p1_affine,
             npoints, batch_size,
-            scalars as *const _ as *const Fr,
-            std::mem::size_of::<G1Affine>(),
+            scalars as *const _ as *const blst_fr,
         )
     };
     if err.code != 0 {

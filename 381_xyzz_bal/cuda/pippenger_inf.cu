@@ -361,9 +361,9 @@ struct RustContext {
 // Allocate device storage, transfer bases
 extern "C"
 RustError mult_pippenger_faster_init(RustContext<bucket_t, affine_t, scalar_t> *context,
-                              const affine_t points[], size_t npoints,
-                              size_t ffi_affine_sz)
+                              const affine_t points[], size_t npoints)
 {
+    size_t ffi_affine_sz = sizeof(affine_t);
     context->context = new Context<bucket_t, affine_t, scalar_t>();
     Context<bucket_t, affine_t, scalar_t> *ctx = context->context;
 
@@ -423,9 +423,9 @@ extern "C"
 RustError mult_pippenger_faster_inf(RustContext<bucket_t, affine_t, scalar_t> *context,
                              point_t* out, const affine_t points[],
                              size_t npoints, size_t batches,
-                             const scalar_t scalars[],
-                             size_t ffi_affine_sz)
+                             const scalar_t scalars[])
 {
+    size_t ffi_affine_sz = sizeof(affine_t);
     (void)points; // Silence unused param warning
     
     Context<bucket_t, affine_t, scalar_t> *ctx = context->context;
