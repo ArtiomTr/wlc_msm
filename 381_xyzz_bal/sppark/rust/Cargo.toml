@@ -5,7 +5,7 @@ edition = "2018"
 description = "Zero-knowledge template library"
 repository = "https://github.com/supranational/sppark"
 license = "Apache-2.0"
-links = "sppark"
+links = "sppark_bal"
 include = [
     "/Cargo.toml",
     "/build.rs",
