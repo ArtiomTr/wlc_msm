@@ -11,7 +11,7 @@ use ark_std::Zero;
 #[allow(unused_imports)]
 use blst::*;
 
-sppark::cuda_error!();
+sppark_bal::cuda_error!();
 
 pub mod util;
 

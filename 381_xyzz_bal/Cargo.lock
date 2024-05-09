@@ -691,7 +691,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "sppark"
+name = "sppark_bal"
 version = "0.1.0"
 
 [[package]]
@@ -930,7 +930,7 @@ dependencies = [
  "rand",
  "rand_chacha",
  "rayon",
- "sppark",
+ "sppark_bal",
  "which",
 ]
 

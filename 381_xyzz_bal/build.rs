@@ -84,7 +84,7 @@ fn main() {
         if let Some(include) = env::var_os("DEP_BLST_C_SRC") {
             nvcc.include(include);
         }
-        if let Some(include) = env::var_os("DEP_SPPARK_ROOT") {
+        if let Some(include) = env::var_os("DEP_SPPARK_BAL_ROOT") {
             nvcc.include(include);
         }
         nvcc.file("cuda/pippenger_inf.cu").compile("blst_cuda_msm");

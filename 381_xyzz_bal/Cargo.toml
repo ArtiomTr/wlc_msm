@@ -18,7 +18,7 @@ quiet = []
 
 [dependencies]
 blst = "^0"
-sppark = { path = "sppark/rust" }
+sppark_bal = { path = "sppark/rust" }
 rand = "^0"
 rand_chacha = "^0"
 ark-std = "0.3.0"
